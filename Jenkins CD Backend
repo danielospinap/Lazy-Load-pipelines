@@ -1,0 +1,53 @@
+pipeline {
+    agent any
+    
+    stages {
+
+        stage('Get Artifact') {
+            steps {
+                cleanWs()
+
+                script {
+                    def SERVER_ID = 'artifactoryserver' 
+                    def server = Artifactory.server SERVER_ID
+                    def downloadSpec = 
+                    """
+                        {
+                            "files": [
+                                {
+                                    "pattern": "lazy-load/backend/Build: #77/(*).jar",
+                                    "target": "./{1}.jar",
+                                    "flat": true
+                                }
+                            ]
+                        }
+                    """
+                    server.download(downloadSpec)
+                }
+            }
+        }
+
+        stage('Write Dockerfile') {
+            steps {
+                script {
+                    def db_host="ds029837.mlab.com"
+                    def db_port="29837"
+                    def db_name="lazy_load_dev"
+                    def db_user="user"
+                    def db_pass="tnsPass0"
+                    def content = 
+                        "FROM openjdk:8-jre-alpine" +
+                        "\nEXPOSE 9000" +
+                        "\nENV DB_HOST=$db_host" +
+                        "\nENV DB_PORT=$db_port" +
+                        "\nENV DB_NAME=$db_name" +
+                        "\nENV DB_USER=$db_user" +
+                        "\nENV DB_PASS=$db_pass" +
+                        "\nADD CI-Backend-1.0.jar app.jar" +
+                        "\nENTRYPOINT [\"java\", \"-jar\", \"app.jar\", \"--spring.config.location=application.yaml\"]"
+                    writeFile(file: "Dockerfile", text: content, encoding: "UTF-8")
+                }
+            }
+        }
+    }
+}

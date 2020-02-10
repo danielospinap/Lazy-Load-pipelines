@@ -1,0 +1,83 @@
+pipeline {
+    agent any
+    
+    tools {
+        nodejs 'node'
+    }
+    
+    stages {
+        stage('Get Sources') {
+            steps {
+                cleanWs()
+                
+                // Get code from GitHub repository
+                git 'https://github.com/victor-tns/lazy-load-front.git'
+            }
+        }
+      
+        stage('Resolve Dependencies') {
+            steps {
+                // Install dependencies
+                sh 'npm install'
+            }
+        }
+
+        stage('Code Analysis') {
+            steps {
+                script {
+                    // Run Scan
+                    def scannerhome = tool 'Sonar-Scanner';
+                    withSonarQubeEnv('sonarqube') {
+                        sh """${scannerhome}/bin/sonar-scanner """ +
+                        "-Dsonar.projectKey=Lazy_Load:Frontend " + 
+                        "-Dsonar.sources=src " + 
+                        "-Dsonar.test.inclusions=**/*.spec.ts " + 
+                        "-Dsonar.exclusions=**/node_modules/** " + 
+                        "-Dsonar.typescript.lcov.reportPaths=coverage/lcov.info"
+                    }
+
+                    // Wait for quality gate
+                    sleep 10
+                    timeout(time: 1, unit: 'HOURS') {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Zip files') {
+            steps {
+                script {
+                    zip archive: true, dir: '', glob: '', zipFile: """lazy_load_front.zip"""
+                }
+            }
+        }
+
+        stage('Publish Artifact') {
+            steps {
+                script {
+                    def SERVER_ID = 'artifactoryserver' 
+                    def server = Artifactory.server SERVER_ID
+                    def uploadSpec = 
+                    """
+                        {
+                            "files": [
+                                {
+                                    "pattern": "lazy_load(*).zip",
+                                    "target": "lazy-load/frontend/Build: #${BUILD_NUMBER}/lazy_load{1}.zip"
+                                }
+                            ]
+                        }
+                    """
+                    def buildInfo = Artifactory.newBuildInfo() 
+                    buildInfo.env.capture = true 
+                    buildInfo=server.upload(uploadSpec) 
+                    server.publishBuildInfo(buildInfo)
+                }
+            }
+        }
+    }
+}

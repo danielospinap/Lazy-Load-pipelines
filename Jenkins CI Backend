@@ -1,0 +1,79 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Get Sources') {
+            steps {
+                cleanWs()
+
+                // Get code from GitHub repository
+                git 'https://github.com/victor-tns/lazy-load-backend.git'
+            }
+        }
+      
+        stage('Build') {
+            steps {
+                // Build project without tests
+                sh './gradlew build -x test'
+            }
+        }
+      
+        stage('Test') {
+            steps {
+                // Run tests
+                sh './gradlew test'
+            }
+            
+        }
+
+        stage('Code Analysis') {
+            steps {
+                script {
+                    // Run Scan
+                    def scannerhome = tool 'Sonar-Scanner';
+                    withSonarQubeEnv('sonarqube') {
+                        sh """${scannerhome}/bin/sonar-scanner """ +
+                        "-Dsonar.projectKey=Lazy_Load:Backend " + 
+                        "-Dsonar.sources=. " + 
+                        "-Dsonar.java.binaries=. " +
+                        "-Dsonar.test.inclusions=**/*test*/** " + 
+                        "-Dsonar.exclusions=**/*test*/** "
+                    }
+
+                    // Wait for quality gate
+                    sleep 10
+                    timeout(time: 1, unit: 'HOURS') {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Publish Artifact') {
+            steps {
+                script {
+                    def SERVER_ID = 'artifactoryserver' 
+                    def server = Artifactory.server SERVER_ID
+                    def uploadSpec = 
+                    """
+                        {
+                            "files": [
+                                {
+                                    "pattern": "build/libs/(*).jar",
+                                    "target": "lazy-load/backend/Build: #${BUILD_NUMBER}/{1}.jar"
+                                }
+                            ]
+                        }
+                    """
+                    def buildInfo = Artifactory.newBuildInfo() 
+                    buildInfo.env.capture = true 
+                    buildInfo=server.upload(uploadSpec) 
+                    server.publishBuildInfo(buildInfo)
+                }
+            }
+        }
+    }
+}
