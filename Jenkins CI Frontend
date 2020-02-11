@@ -67,7 +67,27 @@ pipeline {
                             "files": [
                                 {
                                     "pattern": "lazy_load(*).zip",
-                                    "target": "lazy-load/frontend/Build: #${BUILD_NUMBER}/lazy_load{1}.zip"
+                                    "target": "lazy-load/frontend/Build: ${BUILD_NUMBER}/lazy_load{1}.zip"
+                                }
+                            ]
+                        }
+                    """
+                    def buildInfo = Artifactory.newBuildInfo() 
+                    buildInfo.env.capture = true 
+                    buildInfo=server.upload(uploadSpec) 
+                    server.publishBuildInfo(buildInfo)
+                }
+
+                script {
+                    def SERVER_ID = 'artifactoryserver' 
+                    def server = Artifactory.server SERVER_ID
+                    def uploadSpec = 
+                    """
+                        {
+                            "files": [
+                                {
+                                    "pattern": "lazy_load(*).zip",
+                                    "target": "lazy-load/frontend/Build: latest/lazy_load{1}.zip"
                                 }
                             ]
                         }

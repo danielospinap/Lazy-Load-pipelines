@@ -63,7 +63,27 @@ pipeline {
                             "files": [
                                 {
                                     "pattern": "build/libs/(*).jar",
-                                    "target": "lazy-load/backend/Build: #${BUILD_NUMBER}/{1}.jar"
+                                    "target": "lazy-load/backend/Build: ${BUILD_NUMBER}/{1}.jar"
+                                }
+                            ]
+                        }
+                    """
+                    def buildInfo = Artifactory.newBuildInfo() 
+                    buildInfo.env.capture = true 
+                    buildInfo=server.upload(uploadSpec) 
+                    server.publishBuildInfo(buildInfo)
+                }
+
+                script {
+                    def SERVER_ID = 'artifactoryserver' 
+                    def server = Artifactory.server SERVER_ID
+                    def uploadSpec = 
+                    """
+                        {
+                            "files": [
+                                {
+                                    "pattern": "build/libs/(*).jar",
+                                    "target": "lazy-load/backend/Build: latest/{1}.jar"
                                 }
                             ]
                         }

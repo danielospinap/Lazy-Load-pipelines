@@ -16,8 +16,8 @@ pipeline {
                         {
                             "files": [
                                 {
-                                    "pattern": "lazy-load/backend/Build: ${build}/(*).jar",
-                                    "target": "./{1}.jar",
+                                    "pattern": "lazy-load/frontend/Build: ${build}/(*).zip",
+                                    "target": "./{1}.zip",
                                     "flat": true
                                 }
                             ]
@@ -31,23 +31,17 @@ pipeline {
         stage('Create Dockerfile') {
             steps {
                 script {
-                    def archivos=findFiles(glob: '*.jar')
+                    def archivos=findFiles(glob: '*.zip')
                     def ejecutable="${archivos[0]}"
-                    def db_host="ds029837.mlab.com"
-                    def db_port="29837"
-                    def db_name="lazy_load_dev"
-                    def db_user="user"
-                    def db_pass="tnsPass0"
+                    def api_server="http://localhost:9000"
                     def content = 
-                        "FROM openjdk:8-jre-alpine" +
-                        "\nEXPOSE 9000" +
-                        "\nENV DB_HOST=$db_host" +
-                        "\nENV DB_PORT=$db_port" +
-                        "\nENV DB_NAME=$db_name" +
-                        "\nENV DB_USER=$db_user" +
-                        "\nENV DB_PASS=$db_pass" +
-                        "\nADD ${ejecutable} app.jar" +
-                        "\nENTRYPOINT [\"java\", \"-jar\", \"app.jar\", \"--spring.config.location=application.yaml\"]"
+                        "FROM node:13.8.0-alpine3.11" +
+                        "\nEXPOSE 42000" +
+                        "\nENV APi_SERVER=$api_server" +
+                        "\nADD ${ejecutable} app.zip" +
+                        "\nRUN unzip app.zip" +
+                        "\nRUN npm install -g @angular/cli@latest" +
+                        "\nENTRYPOINT [\"npm\", \"start\"]"
                     writeFile(file: "Dockerfile", text: content, encoding: "UTF-8")
                 }
             }
@@ -57,7 +51,7 @@ pipeline {
             steps {
                 script {
                     def PROJECT_ID="docker-prueba-267806"
-                    app = docker.build("gcr.io/${PROJECT_ID}/lazy_load_backend")
+                    app = docker.build("gcr.io/${PROJECT_ID}/lazy_load_frontend")
                     docker.withRegistry('https://gcr.io', 'gcr:docker') {
                         app.push("${env.BUILD_NUMBER}")
                         app.push("latest")
